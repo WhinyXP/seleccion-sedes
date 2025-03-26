@@ -156,6 +156,17 @@ document.addEventListener('DOMContentLoaded', function() {
     // 3. Exportar a tabla HTML
     // Reemplazamos el exportBtn.addEventListener con esto:
     exportBtn.addEventListener('click', function() {
+    // Muestra la tabla solo cuando se exporta
+    const tableContainer = document.getElementById('table-container');
+    const studentsTable = document.getElementById('students-table');
+
+    tableContainer.style.display = 'block';
+    studentsTable.style.display = 'table';
+
+    // Limpia cualquier contenido previo
+    document.querySelector('#students-table thead').innerHTML = '';
+    document.querySelector('#students-table tbody').innerHTML = '';
+
         if (studentsData.length === 0) {
             alert('No hay datos para mostrar');
             return;
@@ -490,5 +501,8 @@ document.addEventListener('DOMContentLoaded', function() {
         exportBtn.disabled = true;
         exportExcelBtn.disabled = true;
         clearBtn.disabled = true;
+        // Oculta la tabla
+        document.getElementById('table-container').style.display = 'none';
+        document.getElementById('students-table').style.display = 'none';
     });
 });
