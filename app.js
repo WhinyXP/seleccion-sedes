@@ -332,35 +332,42 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     // 5. Exportar a Excel
-    function exportToExcel() {
-        if (studentsData.length === 0) {
-            alert('No hay datos para exportar');
-            return;
-        }
-    
-        const excelData = studentsData.map(student => {
-            const rowData = {};
-            
-            // Usar los nombres de columna originales
-            window.originalHeaders.forEach(header => {
-                rowData[header] = student[header] || '';
-            });
-            
-            // Añadir la sede si existe
-            if (student.sede) {
-                rowData['Sede'] = student.sede;
-            }
-            
-            return rowData;
-        });
-    
-        const worksheet = XLSX.utils.json_to_sheet(excelData);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Alumnos');
-    
-        const fecha = new Date().toISOString().slice(0, 10);
-        XLSX.writeFile(workbook, `Alumnos_${fecha}.xlsx`);
+    // 5. Exportar a Excel (versión modificada)
+function exportToExcel() {
+    if (studentsData.length === 0) {
+        alert('No hay datos para exportar');
+        return;
     }
+
+    const excelData = studentsData.map((student, index) => {
+        const rowData = {};
+        
+        // Añadir el número secuencial (index + 1)
+        rowData['No.'] = index + 1;
+        
+        // Usar los nombres de columna originales
+        window.originalHeaders.forEach(header => {
+            // Saltar el 'No.' original si existe para evitar duplicados
+            if (header.toLowerCase() !== 'no.' && header.toLowerCase() !== 'no') {
+                rowData[header] = student[header] || '';
+            }
+        });
+        
+        // Añadir la sede si existe
+        if (student.sede) {
+            rowData['Sede'] = student.sede;
+        }
+        
+        return rowData;
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Alumnos');
+
+    const fecha = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(workbook, `Alumnos_${fecha}.xlsx`);
+}
 
     // Funciones auxiliares
     function findHeaderRowIndex(data) {
