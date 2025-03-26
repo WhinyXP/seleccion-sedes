@@ -59,6 +59,13 @@ document.addEventListener('DOMContentLoaded', function() {
                     });
                 }
             }
+            // Después de determinar los headers y existingColumns, añade esto:
+            window.tableColumns = headers
+            .filter(header => existingColumns[header] && 
+                !['no.', 'no', 'número'].includes(header.toLowerCase()))
+            .concat(['Sede', 'Acción']);
+            // Dentro del reader.onload del excelFileInput, después de determinar existingColumns:
+            window.originalHeaders = headers.filter(header => existingColumns[header]);
             
             studentsData = [];
             for (let i = headerRowIndex + 1; i < jsonData.length; i++) {
@@ -148,54 +155,67 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 3. Exportar a tabla HTML
     // Reemplazamos el exportBtn.addEventListener con esto:
-exportBtn.addEventListener('click', function() {
-    if (studentsData.length === 0) {
-        alert('No hay datos para mostrar');
-        return;
-    }
-    
-    tableBody.innerHTML = '';
-    
-    // Generar los encabezados de la tabla
-    const thead = document.querySelector('#students-table thead');
-    thead.innerHTML = '<tr></tr>';
-    const headerRow = thead.querySelector('tr');
-    
-    // Siempre mostrar No.
-    headerRow.innerHTML += '<th>No.</th>';
-    
-    // Mostrar las columnas dinámicas
-    window.tableColumns.forEach(column => {
-        headerRow.innerHTML += `<th>${column}</th>`;
-    });
-    
-    // Generar las filas de datos
-    studentsData.forEach((student, index) => {
-        const row = document.createElement('tr');
+    exportBtn.addEventListener('click', function() {
+        if (studentsData.length === 0) {
+            alert('No hay datos para mostrar');
+            return;
+        }
         
-        // Siempre mostrar el número
-        row.innerHTML = `<td>${student.no || ''}</td>`;
+        tableBody.innerHTML = '';
+        
+        // Generar los encabezados de la tabla
+        const thead = document.querySelector('#students-table thead');
+        thead.innerHTML = '<tr></tr>';
+        const headerRow = thead.querySelector('tr');
+        
+        // Siempre mostrar No.
+        headerRow.innerHTML += '<th>No.</th>';
         
         // Mostrar las columnas dinámicas
         window.tableColumns.forEach(column => {
-            if (column === 'Sede') {
-                row.innerHTML += `<td class="sede-cell">${student.sede || ''}</td>`;
-            } else if (column === 'Acción') {
-                row.innerHTML += `
-                    <td class="action-buttons">
-                        <button class="add-sede-btn" data-index="${index}">Añadir sede</button>
-                        <button class="clear-sede-btn" data-index="${index}" 
-                            ${!student.sede ? 'disabled' : ''}>Limpiar sede</button>
-                    </td>
-                `;
-            } else {
-                row.innerHTML += `<td>${student[column] || ''}</td>`;
-            }
+            headerRow.innerHTML += `<th>${column}</th>`;
         });
         
-        tableBody.appendChild(row);
-    });
+        // Generar las filas de datos
+        studentsData.forEach((student, index) => {
+            const row = document.createElement('tr');
+            
+            // Siempre mostrar el número
+            row.innerHTML = `<td>${student.no || ''}</td>`;
+            
+            // Mostrar las columnas dinámicas
+            // Reemplaza esta parte (si usas innerHTML):
+            window.tableColumns.forEach(column => {
+                if (column === 'Sede') {
+                    row.innerHTML += `<td class="sede-cell">${student.sede || ''}</td>`;
+                } 
+                else if (column === 'Acción') {
+                    row.innerHTML += `
+                        <td class="action-buttons">
+                            <button class="add-sede-btn" data-index="${index}">Añadir sede</button>
+                            <button class="clear-sede-btn" data-index="${index}" 
+                                ${!student.sede ? 'disabled' : ''}>Limpiar sede</button>
+                        </td>
+                    `;
+                } 
+                else {
+                    // Marcar la celda de número de cuenta si coincide con patrones comunes
+                    const isAccountColumn = [
+                        'no. cuenta', 'número de cuenta', 'numero de cuenta', 'cuenta', 'número', 'numero'
+                    ].some(term => column.toLowerCase().includes(term));
+                    
+                    if (isAccountColumn) {
+                        row.innerHTML += `<td data-account>${student[column] || ''}</td>`;
+                    } else {
+                        row.innerHTML += `<td>${student[column] || ''}</td>`;
+                    }
+                }
+            });
+            
+            tableBody.appendChild(row);
+        });
         
+        // El resto del código para los event listeners de los botones permanece igual
         document.querySelectorAll('.add-sede-btn').forEach(btn => {
             btn.addEventListener('click', function() {
                 if (sedesData.length === 0) {
@@ -209,7 +229,6 @@ exportBtn.addEventListener('click', function() {
             });
         });
 
-        // Dentro del exportBtn.addEventListener, después de asignar el event listener para add-sede-btn:
         document.querySelectorAll('.clear-sede-btn').forEach(btn => {
             btn.addEventListener('click', function() {
                 const index = this.getAttribute('data-index');
@@ -217,7 +236,6 @@ exportBtn.addEventListener('click', function() {
                 studentsData[index].sedeId = '';
                 studentsData[index].plazasSede = 0;
                 
-                // Actualizar la tabla
                 const rows = tableBody.querySelectorAll('tr');
                 if (rows[index]) {
                     const sedeCell = rows[index].querySelector('.sede-cell');
@@ -227,10 +245,8 @@ exportBtn.addEventListener('click', function() {
                     }
                 }
                 
-                // Deshabilitar el botón "Limpiar sede" después de limpiar
                 this.disabled = true;
                 
-                // Volver a mostrar las sedes (para actualizar disponibilidad)
                 if (sedesData.length > 0) {
                     displaySedes(removeDuplicateSedes(sedesData));
                 }
@@ -312,18 +328,17 @@ exportBtn.addEventListener('click', function() {
         }
     
         const excelData = studentsData.map(student => {
-            const rowData = {
-                'No.': student.no
-            };
+            const rowData = {};
             
-            // Añadir dinámicamente las columnas existentes
-            window.tableColumns.forEach(column => {
-                if (column !== 'Sede' && column !== 'Acción') {
-                    rowData[column] = student[column] || '';
-                } else if (column === 'Sede') {
-                    rowData['Sede'] = student.sede || '';
-                }
+            // Usar los nombres de columna originales
+            window.originalHeaders.forEach(header => {
+                rowData[header] = student[header] || '';
             });
+            
+            // Añadir la sede si existe
+            if (student.sede) {
+                rowData['Sede'] = student.sede;
+            }
             
             return rowData;
         });
@@ -371,26 +386,60 @@ exportBtn.addEventListener('click', function() {
     }
 
     function filterStudents(searchTerm) {
-        searchTerm = searchTerm.toLowerCase();
+        searchTerm = searchTerm.toLowerCase().trim();
         const rows = tableBody.querySelectorAll('tr');
+        
+        if (!searchTerm) {
+            rows.forEach(row => row.style.display = '');
+            return;
+        }
+    
+        const searchWords = searchTerm.split(/\s+/).filter(word => word.length > 0);
+        const isAccountNumberSearch = /^\d+$/.test(searchTerm);
         
         rows.forEach(row => {
             const cells = row.querySelectorAll('td');
-            const name = cells[5].textContent.toLowerCase();
-            const lastName = cells[3].textContent.toLowerCase();
-            const studentId = cells[6].textContent.toLowerCase();
-            const sede = cells[9].textContent.toLowerCase(); // Nueva columna de sede
+            let shouldShow = false;
             
-            if (
-                name.includes(searchTerm) || 
-                lastName.includes(searchTerm) || 
-                studentId.includes(searchTerm) || 
-                sede.includes(searchTerm) // Ahora también busca por sede
-            ) {
-                row.style.display = '';
-            } else {
-                row.style.display = 'none';
+            // Caso 1: Búsqueda por número de cuenta (solo dígitos)
+            if (isAccountNumberSearch) {
+                const accountCell = Array.from(cells).find(cell => 
+                    cell.getAttribute('data-account') !== null
+                );
+                shouldShow = accountCell?.textContent.toLowerCase().includes(searchTerm);
             }
+            // Caso 2: Búsqueda por nombre completo (combinación de nombre + apellidos)
+            else if (searchWords.length >= 2) {
+                // Extraer texto de todas las celdas (excepto acción)
+                const fullText = Array.from(cells)
+                    .slice(0, -1)
+                    .map(cell => cell.textContent.toLowerCase())
+                    .join('|'); // Separador único
+                    
+                // Verificar si TODAS las palabras existen en cualquier orden
+                shouldShow = searchWords.every(word => 
+                    fullText.includes(word)
+                );
+                
+                // Opcional: Priorizar coincidencias exactas de nombre completo
+                if (!shouldShow) {
+                    const combinedText = Array.from(cells)
+                        .slice(0, -1)
+                        .map(cell => cell.textContent.toLowerCase())
+                        .join(' ');
+                    shouldShow = combinedText.includes(searchTerm);
+                }
+            }
+            // Caso 3: Búsqueda simple (1 palabra)
+            else {
+                shouldShow = Array.from(cells)
+                    .slice(0, -1)
+                    .some(cell => 
+                        cell.textContent.toLowerCase().includes(searchWords[0])
+                    );
+            }
+            
+            row.style.display = shouldShow ? '' : 'none';
         });
     }
 
