@@ -103,6 +103,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // 2. Cargar archivo de sedes
+    // 2. Cargar archivo de sedes (versión modificada)
     sedeFileInput.addEventListener('change', async function(e) {
         const file = e.target.files[0];
         if (!file) return;
@@ -113,39 +114,60 @@ document.addEventListener('DOMContentLoaded', function() {
             const worksheet = workbook.Sheets[workbook.SheetNames[0]];
             const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
-            const headerRowIndex = findHeaderRowIndex(jsonData);
-            if (headerRowIndex === -1) throw new Error('No se encontraron encabezados válidos');
+            // Buscar los encabezados "Programa" y "Número de plazas"
+            let programaIndex = -1;
+            let plazasIndex = -1;
             
-            const headerRow = jsonData[headerRowIndex].map(cell => String(cell).toLowerCase().trim());
-            const institucionIndex = headerRow.findIndex(h => h.includes('institución') || h.includes('institucion'));
-            const nombreSedeIndex = headerRow.findIndex(h => h.includes('nombre de sede') || h.includes('sede') || h.includes('nombre sede'));
-            const plazasIndex = headerRow.findIndex(h => h.includes('número de plazas') || h.includes('numero de plazas') || h.includes('plazas'));
-
-            if (institucionIndex === -1 || nombreSedeIndex === -1) {
-                throw new Error('Columnas requeridas no encontradas');
+            // Buscar en las primeras filas (hasta la fila 10) para encontrar los encabezados
+            for (let i = 0; i < 10; i++) {
+                const row = jsonData[i];
+                if (row) {
+                    // Buscar "Programa"
+                    const programaCol = row.findIndex(cell => 
+                        String(cell).toLowerCase().includes('programa'));
+                    if (programaCol !== -1) programaIndex = programaCol;
+                    
+                    // Buscar "Número de plazas" o variantes
+                    const plazasCol = row.findIndex(cell => 
+                        String(cell).toLowerCase().includes('número de plazas') || 
+                        String(cell).toLowerCase().includes('numero de plazas') || 
+                        String(cell).toLowerCase().includes('plazas'));
+                    if (plazasCol !== -1) plazasIndex = plazasCol;
+                    
+                    // Si encontramos ambos, salimos del bucle
+                    if (programaIndex !== -1 && plazasIndex !== -1) break;
+                }
             }
 
+            if (programaIndex === -1) {
+                throw new Error('No se encontró la columna "Programa"');
+            }
+
+            if (plazasIndex === -1) {
+                throw new Error('No se encontró la columna "Número de plazas"');
+            }
+
+            // Procesar los datos
             sedesData = [];
-            for (let i = headerRowIndex + 1; i < jsonData.length; i++) {
+            for (let i = 0; i < jsonData.length; i++) {
                 const row = jsonData[i];
-                if (row && row[institucionIndex] && row[nombreSedeIndex]) {
-                    const institucion = String(row[institucionIndex]).trim();
-                    const sede = String(row[nombreSedeIndex]).trim();
+                if (row && row[programaIndex]) {
+                    const programa = String(row[programaIndex]).trim();
                     const plazas = plazasIndex !== -1 ? parseInt(row[plazasIndex]) || 0 : 0;
                     
-                    if (institucion && sede) {
+                    if (programa) {
                         sedesData.push({
-                            id: `${institucion}-${sede}`,
-                            displayText: `${institucion} - ${sede}`,
-                            institucion,
-                            sede,
+                            id: programa,
+                            displayText: programa,
+                            institucion: programa, // Mantenemos este campo por compatibilidad
+                            sede: programa,       // Mantenemos este campo por compatibilidad
                             plazasDisponibles: plazas
                         });
                     }
                 }
             }
             
-            alert(`Se cargaron ${sedesData.length} sedes correctamente`);
+            alert(`Se cargaron ${sedesData.length} programas/sedes correctamente`);
             
         } catch (error) {
             console.error('Error:', error);
@@ -322,34 +344,34 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // 5. Exportar a Excel
     function exportToExcel() {
-        if (studentsData.length === 0) {
-            alert('No hay datos para exportar');
-            return;
-        }
-    
-        const excelData = studentsData.map(student => {
-            const rowData = {};
-            
-            // Usar los nombres de columna originales
-            window.originalHeaders.forEach(header => {
-                rowData[header] = student[header] || '';
-            });
-            
-            // Añadir la sede si existe
-            if (student.sede) {
-                rowData['Sede'] = student.sede;
-            }
-            
-            return rowData;
-        });
-    
-        const worksheet = XLSX.utils.json_to_sheet(excelData);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Alumnos');
-    
-        const fecha = new Date().toISOString().slice(0, 10);
-        XLSX.writeFile(workbook, `Alumnos_${fecha}.xlsx`);
+    if (studentsData.length === 0) {
+        alert('No hay datos para exportar');
+        return;
     }
+
+    const excelData = studentsData.map(student => {
+        const rowData = {};
+        
+        // Usar los nombres de columna originales
+        window.originalHeaders.forEach(header => {
+            rowData[header] = student[header] || '';
+        });
+        
+        // Añadir el programa universitario si existe
+        if (student.sede) {
+            rowData['Programa Universitario'] = student.sede; // Cambiado de 'Sede' a 'Programa Universitario'
+        }
+        
+        return rowData;
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(excelData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Alumnos');
+
+    const fecha = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(workbook, `Alumnos_${fecha}.xlsx`);
+}
 
     // Funciones auxiliares
     function findHeaderRowIndex(data) {
