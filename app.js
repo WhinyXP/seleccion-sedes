@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const reader = new FileReader();
         
+        // En el evento change del excelFileInput, reemplazamos esta parte:
         reader.onload = function(e) {
             const data = new Uint8Array(e.target.result);
             const workbook = XLSX.read(data, { type: 'array' });
@@ -43,26 +44,48 @@ document.addEventListener('DOMContentLoaded', function() {
                 }
             }
             
-            studentsData = [];
+            // Obtener los encabezados reales del archivo
+            const headers = jsonData[headerRowIndex].map(h => String(h).trim());
+            
+            // Determinar qué columnas existen y tienen datos
+            const existingColumns = {};
             for (let i = headerRowIndex + 1; i < jsonData.length; i++) {
                 const row = jsonData[i];
-                if (row && row.length >= 9) {
-                    studentsData.push({
-                        no: row[0],
-                        grupo: row[1],
-                        planEstudio: row[2],
-                        apellidoPaterno: row[3],
-                        apellidoMaterno: row[4],
-                        nombres: row[5],
-                        numeroCuenta: row[6],
-                        promedio: row[7],
-                        correo: row[8],
-                        sede: '',
-                        sedeId: '',
-                        plazasSede: 0
+                if (row) {
+                    headers.forEach((header, index) => {
+                        if (row[index] !== undefined && row[index] !== '') {
+                            existingColumns[header] = true;
+                        }
                     });
                 }
             }
+            
+            studentsData = [];
+            for (let i = headerRowIndex + 1; i < jsonData.length; i++) {
+                const row = jsonData[i];
+                if (row && row.length > 0) {
+                    const student = {
+                        no: row[headers.indexOf('No.')] || row[headers.indexOf('No')] || '',
+                        sede: '',
+                        sedeId: '',
+                        plazasSede: 0
+                    };
+                    
+                    // Añadir dinámicamente las propiedades basadas en los encabezados existentes
+                    headers.forEach((header, index) => {
+                        if (existingColumns[header] && header !== 'No.' && header !== 'No') {
+                            student[header] = row[index] || '';
+                        }
+                    });
+                    
+                    studentsData.push(student);
+                }
+            }
+            
+            // Guardar información de columnas para usar al generar la tabla
+            window.tableColumns = Object.keys(existingColumns)
+                .filter(col => col !== 'No.' && col !== 'No')
+                .concat(['Sede', 'Acción']);
             
             exportBtn.disabled = false;
             clearBtn.disabled = false;
@@ -124,37 +147,54 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // 3. Exportar a tabla HTML
-    exportBtn.addEventListener('click', function() {
-        if (studentsData.length === 0) {
-            alert('No hay datos para mostrar');
-            return;
-        }
+    // Reemplazamos el exportBtn.addEventListener con esto:
+exportBtn.addEventListener('click', function() {
+    if (studentsData.length === 0) {
+        alert('No hay datos para mostrar');
+        return;
+    }
+    
+    tableBody.innerHTML = '';
+    
+    // Generar los encabezados de la tabla
+    const thead = document.querySelector('#students-table thead');
+    thead.innerHTML = '<tr></tr>';
+    const headerRow = thead.querySelector('tr');
+    
+    // Siempre mostrar No.
+    headerRow.innerHTML += '<th>No.</th>';
+    
+    // Mostrar las columnas dinámicas
+    window.tableColumns.forEach(column => {
+        headerRow.innerHTML += `<th>${column}</th>`;
+    });
+    
+    // Generar las filas de datos
+    studentsData.forEach((student, index) => {
+        const row = document.createElement('tr');
         
-        tableBody.innerHTML = '';
+        // Siempre mostrar el número
+        row.innerHTML = `<td>${student.no || ''}</td>`;
         
-        studentsData.forEach((student, index) => {
-            const row = document.createElement('tr');
-            
-            row.innerHTML = `
-                <td>${student.no || ''}</td>
-                <td>${student.grupo || ''}</td>
-                <td>${student.planEstudio || ''}</td>
-                <td>${student.apellidoPaterno || ''}</td>
-                <td>${student.apellidoMaterno || ''}</td>
-                <td>${student.nombres || ''}</td>
-                <td>${student.numeroCuenta || ''}</td>
-                <td>${student.promedio || ''}</td>
-                <td>${student.correo || ''}</td>
-                <td class="sede-cell">${student.sede || ''}</td>
-                <td class="action-buttons">
-                    <button class="add-sede-btn" data-index="${index}">Añadir sede</button>
-                    <button class="clear-sede-btn" data-index="${index}" 
-                        ${!student.sede ? 'disabled' : ''}>Limpiar sede</button>
-                </td>
-            `;
-            
-            tableBody.appendChild(row);
-        });;
+        // Mostrar las columnas dinámicas
+        window.tableColumns.forEach(column => {
+            if (column === 'Sede') {
+                row.innerHTML += `<td class="sede-cell">${student.sede || ''}</td>`;
+            } else if (column === 'Acción') {
+                row.innerHTML += `
+                    <td class="action-buttons">
+                        <button class="add-sede-btn" data-index="${index}">Añadir sede</button>
+                        <button class="clear-sede-btn" data-index="${index}" 
+                            ${!student.sede ? 'disabled' : ''}>Limpiar sede</button>
+                    </td>
+                `;
+            } else {
+                row.innerHTML += `<td>${student[column] || ''}</td>`;
+            }
+        });
+        
+        tableBody.appendChild(row);
+    });
         
         document.querySelectorAll('.add-sede-btn').forEach(btn => {
             btn.addEventListener('click', function() {
@@ -270,23 +310,28 @@ document.addEventListener('DOMContentLoaded', function() {
             alert('No hay datos para exportar');
             return;
         }
-
-        const excelData = studentsData.map(student => ({
-            'No.': student.no,
-            'Plan de estudio': student.planEstudio,
-            'Apellido Paterno': student.apellidoPaterno,
-            'Apellido Materno': student.apellidoMaterno,
-            'Nombres': student.nombres,
-            'Número de cuenta': student.numeroCuenta,
-            'Promedio': student.promedio,
-            'Correo': student.correo,
-            'Sede': student.sede
-        }));
-
+    
+        const excelData = studentsData.map(student => {
+            const rowData = {
+                'No.': student.no
+            };
+            
+            // Añadir dinámicamente las columnas existentes
+            window.tableColumns.forEach(column => {
+                if (column !== 'Sede' && column !== 'Acción') {
+                    rowData[column] = student[column] || '';
+                } else if (column === 'Sede') {
+                    rowData['Sede'] = student.sede || '';
+                }
+            });
+            
+            return rowData;
+        });
+    
         const worksheet = XLSX.utils.json_to_sheet(excelData);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Alumnos');
-
+    
         const fecha = new Date().toISOString().slice(0, 10);
         XLSX.writeFile(workbook, `Alumnos_${fecha}.xlsx`);
     }
