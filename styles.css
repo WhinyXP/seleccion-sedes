@@ -8,7 +8,7 @@ body {
 }
 
 .container {
-    max-width: 1500px;
+    max-width: 1700px;
     margin: 0 auto;
     background: #fff;
     padding: 20px;
@@ -292,3 +292,28 @@ li[data-plazas="0"] {
     background-color: #95a5a6;
 }
 
+.action-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.clear-sede-btn {
+    padding: 6px 12px;
+    background-color: #e74c3c;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: background-color 0.3s;
+}
+
+.clear-sede-btn:hover {
+    background-color: #c0392b;
+}
+
+.clear-sede-btn:disabled {
+    background-color: #95a5a6;
+    cursor: not-allowed;
+}

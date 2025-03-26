@@ -146,11 +146,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 <td>${student.promedio || ''}</td>
                 <td>${student.correo || ''}</td>
                 <td class="sede-cell">${student.sede || ''}</td>
-                <td><button class="add-sede-btn" data-index="${index}">Añadir sede</button></td>
+                <td class="action-buttons">
+                    <button class="add-sede-btn" data-index="${index}">Añadir sede</button>
+                    <button class="clear-sede-btn" data-index="${index}" 
+                        ${!student.sede ? 'disabled' : ''}>Limpiar sede</button>
+                </td>
             `;
             
             tableBody.appendChild(row);
-        });
+        });;
         
         document.querySelectorAll('.add-sede-btn').forEach(btn => {
             btn.addEventListener('click', function() {
@@ -162,6 +166,34 @@ document.addEventListener('DOMContentLoaded', function() {
                 currentStudentIndex = this.getAttribute('data-index');
                 displaySedes(removeDuplicateSedes(sedesData));
                 sedeModal.style.display = 'block';
+            });
+        });
+
+        // Dentro del exportBtn.addEventListener, después de asignar el event listener para add-sede-btn:
+        document.querySelectorAll('.clear-sede-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const index = this.getAttribute('data-index');
+                studentsData[index].sede = '';
+                studentsData[index].sedeId = '';
+                studentsData[index].plazasSede = 0;
+                
+                // Actualizar la tabla
+                const rows = tableBody.querySelectorAll('tr');
+                if (rows[index]) {
+                    const sedeCell = rows[index].querySelector('.sede-cell');
+                    if (sedeCell) {
+                        sedeCell.textContent = '';
+                        sedeCell.removeAttribute('data-plazas');
+                    }
+                }
+                
+                // Deshabilitar el botón "Limpiar sede" después de limpiar
+                this.disabled = true;
+                
+                // Volver a mostrar las sedes (para actualizar disponibilidad)
+                if (sedesData.length > 0) {
+                    displaySedes(removeDuplicateSedes(sedesData));
+                }
             });
         });
 
@@ -178,27 +210,20 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         sedes.forEach(sede => {
-            const li = document.createElement('li');
             const plazasRestantes = sede.plazasDisponibles - getAsignacionesSede(sede.id);
             
-            li.innerHTML = `
-                <strong>${sede.displayText}</strong>
-                <span class="plazas-badge ${plazasRestantes <= 0 ? 'plazas-agotadas' : ''}">
-                    Plazas: ${plazasRestantes}
-                </span>
-            `;
-            
+            // Solo mostrar sedes con plazas disponibles
             if (plazasRestantes > 0) {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <strong>${sede.displayText}</strong>
+                    <span class="plazas-badge">Plazas: ${plazasRestantes}</span>
+                `;
+                
                 li.addEventListener('click', () => selectSede(sede));
-                li.style.cursor = 'pointer';
-            } else {
-                li.style.opacity = '0.6';
-                li.style.cursor = 'not-allowed';
+                li.setAttribute('data-plazas', plazasRestantes);
+                sedeList.appendChild(li);
             }
-            
-            li.setAttribute('data-plazas', plazasRestantes);
-            li.setAttribute('data-sede-id', sede.id);
-            sedeList.appendChild(li);
         });
     }
 
@@ -212,19 +237,30 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
+        // Asignar la sede al alumno
         studentsData[currentStudentIndex].sede = sede.displayText;
         studentsData[currentStudentIndex].sedeId = sede.id;
         studentsData[currentStudentIndex].plazasSede = sede.plazasDisponibles;
         
+        // Actualizar la tabla
         const rows = tableBody.querySelectorAll('tr');
         if (rows[currentStudentIndex]) {
             const sedeCell = rows[currentStudentIndex].querySelector('.sede-cell');
+            const clearBtn = rows[currentStudentIndex].querySelector('.clear-sede-btn');
+            
             if (sedeCell) {
                 sedeCell.textContent = sede.displayText;
                 sedeCell.setAttribute('data-plazas', plazasRestantes - 1);
             }
+            
+            // Habilitar el botón "Limpiar sede" para ESTE alumno
+            if (clearBtn) {
+                clearBtn.disabled = false;
+            }
         }
         
+        // Actualizar lista de sedes
+        displaySedes(removeDuplicateSedes(sedesData));
         sedeModal.style.display = 'none';
     }
 
@@ -298,10 +334,14 @@ document.addEventListener('DOMContentLoaded', function() {
             const name = cells[5].textContent.toLowerCase();
             const lastName = cells[3].textContent.toLowerCase();
             const studentId = cells[6].textContent.toLowerCase();
+            const sede = cells[9].textContent.toLowerCase(); // Nueva columna de sede
             
-            if (name.includes(searchTerm) || 
+            if (
+                name.includes(searchTerm) || 
                 lastName.includes(searchTerm) || 
-                studentId.includes(searchTerm)) {
+                studentId.includes(searchTerm) || 
+                sede.includes(searchTerm) // Ahora también busca por sede
+            ) {
                 row.style.display = '';
             } else {
                 row.style.display = 'none';
